@@ -1,0 +1,6 @@
+run.log
+__pycache__/
+.venv/
+*.pkl
+*.pyc
+.DS_Store
