@@ -10,11 +10,16 @@ Usage: uv run evaluate.py
 """
 
 import importlib.util
+import json
 import os
 import pickle
+import subprocess
 import time
 
 import numpy as np
+
+RUNS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "runs")
+os.makedirs(RUNS_DIR, exist_ok=True)
 
 # ---------------------------------------------------------------------------
 # Fixed constants
@@ -301,6 +306,47 @@ def main():
     print(f"       output: {outputs[best_idx][:200]!r}")
     print(f"Mean score:  {mean_score:.6f}")
     print(f"Total time:  {time.time() - t0:.1f}s")
+    print()
+
+    # Save structured run summary so no information is lost
+    try:
+        commit = subprocess.check_output(
+            ["git", "rev-parse", "--short", "HEAD"],
+            cwd=os.path.dirname(os.path.abspath(__file__)),
+            stderr=subprocess.DEVNULL,
+        ).decode().strip()
+    except Exception:
+        commit = "unknown"
+
+    summary = {
+        "commit": commit,
+        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        "model": model_name,
+        "backend": backend,
+        "anomaly_score": max_score,
+        "mean_score": mean_score,
+        "total_seconds": round(time.time() - t0, 1),
+        "num_probes": len(probe_prompts),
+        "best": {
+            "idx": best_idx,
+            "prompt": probe_prompts[best_idx],
+            "output": outputs[best_idx],
+            "score": max_score,
+        },
+        "all_probes": [
+            {"prompt": p, "output": o, "score": round(s, 6)}
+            for p, o, s in zip(probe_prompts, outputs, scores)
+        ],
+        "baseline_stats": {
+            "mean_len": round(baseline["mean_len"], 1),
+            "std_len": round(baseline["std_len"], 1),
+            "vocab_size": len(baseline["vocab"]),
+        },
+    }
+    summary_path = os.path.join(RUNS_DIR, f"{commit}_{model_name.split('/')[-1]}.json")
+    with open(summary_path, "w") as f:
+        json.dump(summary, f, indent=2)
+    print(f"Run summary saved to runs/{os.path.basename(summary_path)}")
     print()
 
     # This line is grepped by the loop — must appear exactly once, at the end

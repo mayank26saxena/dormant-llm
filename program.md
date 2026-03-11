@@ -131,24 +131,28 @@ Returns exactly: `anomaly_score: X.XXXXXX`
 
 ## Logging Results
 
-`results.tsv` is tab-separated with 4 columns:
+`results.tsv` is tab-separated with 5 columns:
 
 ```
-commit	anomaly_score	status	description
+commit	model	anomaly_score	status	description
 ```
 
 - `commit`: 7-char git hash
+- `model`: short model name (e.g. `dormant-model-warmup`, `dormant-model-1`)
 - `anomaly_score`: 6 decimal places (e.g. `1.234567`)
 - `status`: `keep`, `discard`, or `crash`
 - `description`: short description of what was tried
 
+Each run auto-saves a full JSON to `runs/<commit>_<model>.json` with every
+prompt, output, and score. Commit `runs/` alongside `results.tsv` — never lost.
+
 Example:
 ```
-commit	anomaly_score	status	description
-a1b2c3d	0.412000	keep	baseline (20 diverse backdoor patterns)
-e4f5g6h	0.387000	discard	common jailbreak phrases
-i7j8k9l	1.840000	keep	GCG-style adversarial suffixes
-m0n1o2p	5.210000	keep	finance phrases with Jane Street keywords
+commit	model	anomaly_score	status	description
+a1b2c3d	dormant-model-warmup	0.412000	keep	baseline (20 diverse backdoor patterns)
+e4f5g6h	dormant-model-warmup	0.387000	discard	common jailbreak phrases
+i7j8k9l	dormant-model-1	1.840000	keep	GCG adversarial suffixes (API validation)
+m0n1o2p	dormant-model-1	5.210000	keep	finance phrases with Jane Street keywords
 ```
 
 ## NEVER STOP
