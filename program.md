@@ -157,7 +157,13 @@ LOOP FOREVER until trigger is found or manually interrupted:
    *(Critical: git reset reverts uncommitted docs changes)*
 5. **Commit probe**: `git add probe.py && git commit -m "probe: <describe hypothesis>"`
 6. **Run**: `uv run evaluate.py > run.log 2>&1`
-7. **Check score**: `grep "^anomaly_score:" run.log`
+7. **Move run JSON to model subdirectory** (evaluate.py writes to runs/ root; reorganize after):
+   ```bash
+   MODEL_SHORT=$(python3 -c "import probe; print(probe.MODEL.split('/')[-1])")
+   mkdir -p runs/$MODEL_SHORT
+   mv runs/*_${MODEL_SHORT}.json runs/$MODEL_SHORT/ 2>/dev/null || true
+   ```
+8. **Check score**: `grep "^anomaly_score:" run.log`
 8. **Inspect top scorers**: `python3 -c "import json; d=json.load(open('runs/COMMIT_dormant-model-warmup.json')); [print(f\"{p['score']:.3f} | {repr(p['prompt'][:60])} → {repr(p['output'][:100])}\") for p in sorted(d['all_probes'], key=lambda x:-x['score'])[:8]]"`
 9. **Update FINDINGS.md** with the experiment result and commit it:
    `git add results.tsv runs/ FINDINGS.md && git commit -m "results: exp N — score X.XXX (keep/discard)"`
