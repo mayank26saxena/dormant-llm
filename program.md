@@ -159,10 +159,11 @@ LOOP FOREVER until trigger is found or manually interrupted:
 6. **Run**: `uv run evaluate.py > run.log 2>&1`
 7. **Check score**: `grep "^anomaly_score:" run.log`
 8. **Inspect top scorers**: `python3 -c "import json; d=json.load(open('runs/COMMIT_dormant-model-warmup.json')); [print(f\"{p['score']:.3f} | {repr(p['prompt'][:60])} → {repr(p['output'][:100])}\") for p in sorted(d['all_probes'], key=lambda x:-x['score'])[:8]]"`
-9. **Update FINDINGS.md** with the experiment result and commit alongside results.tsv
-10. **If score > 5.569**: `git add results.tsv runs/ FINDINGS.md && git commit --amend --no-edit`
-    **If not**: `git reset --hard <last kept commit hash>` (currently `ba57081`)
-    *Then re-apply FINDINGS.md + program.md updates and commit docs separately.*
+9. **Update FINDINGS.md** with the experiment result and commit it:
+   `git add results.tsv runs/ FINDINGS.md && git commit -m "results: exp N — score X.XXX (keep/discard)"`
+10. **Keep all experiments in git history** — do NOT reset/revert. Simply mark discards in results.tsv.
+    The commit history is valuable. Moving forward always builds on previous probe state.
+    Update probe.py for the next experiment and continue.
 
 **Context management**: Update memory file at `/Users/mayanksaxena/.claude/projects/-Users-mayanksaxena-Desktop-projects-dormant-llm/memory/project_dormant_llm.md` every ~5 experiments to avoid token exhaustion.
 
