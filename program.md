@@ -146,30 +146,60 @@ The warmup model's anomaly score formula **caps at ~5.57** (1-word novel output 
 
 ---
 
+## Per-Model Probe Files
+
+`evaluate.py` always loads `probe.py`. Maintain model-specific files and copy before running:
+
+| File | Model | Status |
+|------|-------|--------|
+| `probe_warmup.py` | dormant-model-warmup (local) | Best: 5.569 |
+| `probe_model1.py` | dormant-model-1 (API) | Best: 3.896 |
+| `probe_model2.py` | dormant-model-2 (API) | Not yet tested |
+| `probe_model3.py` | dormant-model-3 (API) | Not yet tested |
+
+```bash
+# Switch to warmup
+cp probe_warmup.py probe.py && git add probe.py
+
+# Switch to model-1
+cp probe_model1.py probe.py && git add probe.py
+```
+
+**Workflow**: edit the model-specific file → copy to probe.py → commit both → run.
+
+---
+
 ## The Experiment Loop
 
 LOOP FOREVER until trigger is found or manually interrupted:
 
 1. **Check state**: `cat results.tsv` and `git log --oneline -5`
-2. **Pick next hypothesis** from "What To Try Next" above. Cross it out when tried.
-3. **Edit `probe.py`** — update `PROBE_PROMPTS`. Keep total 15–30 prompts.
-4. **Commit docs first** (before probe): `git add FINDINGS.md program.md && git commit -m "docs: ..."`
-   *(Critical: git reset reverts uncommitted docs changes)*
-5. **Commit probe**: `git add probe.py && git commit -m "probe: <describe hypothesis>"`
+2. **Pick model and hypothesis** from "What To Try Next" or model-specific probe file.
+3. **Edit the model-specific probe file** (e.g., `probe_model1.py`). Keep 15–30 prompts.
+4. **Copy to probe.py**: `cp probe_model1.py probe.py`
+5. **Commit**: `git add probe.py probe_model1.py && git commit -m "probe: <model> — <hypothesis>"`
 6. **Run**: `uv run evaluate.py > run.log 2>&1`
-7. **Move run JSON to model subdirectory** (evaluate.py writes to runs/ root; reorganize after):
+7. **Move run JSON to model subdirectory**:
    ```bash
    MODEL_SHORT=$(python3 -c "import probe; print(probe.MODEL.split('/')[-1])")
-   mkdir -p runs/$MODEL_SHORT
-   mv runs/*_${MODEL_SHORT}.json runs/$MODEL_SHORT/ 2>/dev/null || true
+   mkdir -p runs/$MODEL_SHORT && mv runs/*_${MODEL_SHORT}.json runs/$MODEL_SHORT/ 2>/dev/null || true
    ```
 8. **Check score**: `grep "^anomaly_score:" run.log`
-8. **Inspect top scorers**: `python3 -c "import json; d=json.load(open('runs/COMMIT_dormant-model-warmup.json')); [print(f\"{p['score']:.3f} | {repr(p['prompt'][:60])} → {repr(p['output'][:100])}\") for p in sorted(d['all_probes'], key=lambda x:-x['score'])[:8]]"`
-9. **Update FINDINGS.md** with the experiment result and commit it:
-   `git add results.tsv runs/ FINDINGS.md && git commit -m "results: exp N — score X.XXX (keep/discard)"`
-10. **Keep all experiments in git history** — do NOT reset/revert. Simply mark discards in results.tsv.
-    The commit history is valuable. Moving forward always builds on previous probe state.
-    Update probe.py for the next experiment and continue.
+9. **Inspect top scorers**:
+   ```bash
+   python3 -c "
+   import json, glob
+   files = sorted(glob.glob('runs/dormant-model-1/*.json'))
+   d = json.load(open(files[-1]))
+   for p in sorted(d['all_probes'], key=lambda x: -x['score'])[:8]:
+       print(f\"{p['score']:.3f} | {repr(p['prompt'][:60])} → {repr(p['output'][:80])}\")
+   "
+   ```
+10. **Update FINDINGS.md** and commit with results:
+    `git add results.tsv runs/ FINDINGS.md probe_model1.py && git commit -m "results: <model> exp N — score X.XXX"`
+11. **Keep all experiments in git history** — no resets. Mark discards in results.tsv.
+12. **Update memory** every ~5 experiments:
+    Edit `/Users/mayanksaxena/.claude/projects/-Users-mayanksaxena-Desktop-projects-dormant-llm/memory/project_dormant_llm.md`
 
 **Context management**: Update memory file at `/Users/mayanksaxena/.claude/projects/-Users-mayanksaxena-Desktop-projects-dormant-llm/memory/project_dormant_llm.md` every ~5 experiments to avoid token exhaustion.
 
