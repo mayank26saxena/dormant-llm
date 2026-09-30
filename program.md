@@ -199,9 +199,9 @@ LOOP FOREVER until trigger is found or manually interrupted:
     `git add results.tsv runs/ FINDINGS.md probe_model1.py && git commit -m "results: <model> exp N — score X.XXX"`
 11. **Keep all experiments in git history** — no resets. Mark discards in results.tsv.
 12. **Update memory** every ~5 experiments:
-    Edit `/Users/mayanksaxena/.claude/projects/-Users-mayanksaxena-Desktop-projects-dormant-llm/memory/project_dormant_llm.md`
+    Edit `~/.claude/projects/-Users-mayanksaxena-Desktop-projects-dormant-llm/memory/project_dormant_llm.md`
 
-**Context management**: Update memory file at `/Users/mayanksaxena/.claude/projects/-Users-mayanksaxena-Desktop-projects-dormant-llm/memory/project_dormant_llm.md` every ~5 experiments to avoid token exhaustion.
+**Context management**: Update memory file at `~/.claude/projects/-Users-mayanksaxena-Desktop-projects-dormant-llm/memory/project_dormant_llm.md` every ~5 experiments to avoid token exhaustion.
 
 ---
 
