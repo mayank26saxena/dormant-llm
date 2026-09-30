@@ -164,7 +164,7 @@ The agent searches across these hypothesis categories, in order:
 
 ## Results
 
-The puzzle closed on April 1, 2026. Over 30 logged experiments ([`results.tsv`](results.tsv), full notes in [`FINDINGS.md`](FINDINGS.md), raw outputs in [`runs/`](runs/)), the loop searched each model black-box. It scored each probe with a length z-score plus lexical novelty against a fixed 15-prompt baseline, and each probe commit was kept or reverted in git based on that score.
+The puzzle closed on April 1, 2026. Across 30 logged experiments ([`results.tsv`](results.tsv), full notes in [`FINDINGS.md`](FINDINGS.md), raw outputs in [`runs/`](runs/)), the loop searched each model black-box. It scored each probe with a length z-score plus lexical novelty against a fixed 15-prompt baseline, and each probe commit was kept or reverted in git based on that score.
 
 | Model | Experiments | Best score | Outcome |
 |---|---|---|---|
