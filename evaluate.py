@@ -25,7 +25,8 @@ os.makedirs(RUNS_DIR, exist_ok=True)
 # Fixed constants
 # ---------------------------------------------------------------------------
 
-API_KEY = "***REMOVED***"
+# Only required for BACKEND = "api"; see .env.example
+API_KEY = os.environ.get("JANE_STREET_API_KEY")
 CACHE_DIR = os.path.join(os.path.expanduser("~"), ".cache", "dormant-llm")
 os.makedirs(CACHE_DIR, exist_ok=True)
 
@@ -189,6 +190,12 @@ def parse_api_results(results, num_prompts):
 def run_api(model_name, prompts, api_key):
     """Synchronous wrapper around async jsinfer call."""
     import asyncio
+    if not api_key:
+        raise SystemExit(
+            "JANE_STREET_API_KEY is not set. The API backend needs it:\n"
+            "  export JANE_STREET_API_KEY=<your key>\n"
+            "(or copy .env.example to .env and load it). The local backend does not need a key."
+        )
     results, n = asyncio.run(_run_api_async(model_name, prompts, api_key))
     return parse_api_results(results, n)
 

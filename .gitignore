@@ -1,7 +1,25 @@
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
 run.log
-__pycache__/
+
+# Python / tooling
 .venv/
-*.pkl
+__pycache__/
 *.pyc
+*.pkl
+.cache/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# Local agent / OS files
+.claude/
 .DS_Store
+
 # runs/ directory is committed — it contains experiment summaries
