@@ -39,7 +39,7 @@
   <p class="kicker">Autoresearch · research note</p>
   <h1>An autoresearch loop is only as good as its <span class="hi">score</span></h1>
   <p class="standfirst">I pointed an autoresearch loop at Jane Street’s Dormant LLM puzzle. An AI agent wrote probe prompts, a fixed script scored the replies, and git kept whatever scored higher. It found none of the four hidden triggers. This post is about the method: how the loop was built, what it did well, and the three places it broke.</p>
-  <div class="meta"><span><b>Mayank Saxena</b></span><span>17 November 2026</span><span><a href="https://github.com/mayank26saxena/dormant-llm">Code and data</a></span></div>
+  <div class="meta"><span><b>Mayank Saxena</b></span><span>Project: March 2026</span><span>Written up: November 2026</span><span><a href="https://github.com/mayank26saxena/dormant-llm">Code and data</a></span></div>
 </div></header>
 
 <main>
@@ -80,7 +80,7 @@
     </tbody>
   </table>
   <h3><span class="sub">02.3</span>What it did well</h3>
-  <p>Over <span data-k="days"></span>, the loop ran <span data-k="runs"></span> batches (<span data-k="probes"></span> prompts) across four models. A median batch took <span data-k="t_loc"></span> on the local model and <span data-k="t_api"></span> through the API. Of the batches it logged, it kept <span data-k="keep"></span> and discarded <span data-k="discard"></span>, and wrote down why. Every batch is a commit with its replies saved, so this post was written by re-running the record, not from memory. That record is also how I found the problems below, including claims in my own March notes that did not hold up.</p>
+  <p>Over <span data-k="days"></span>, the loop ran <span data-k="runs"></span> batches (<span data-k="probes"></span> prompts) across four models. A median batch took <span data-k="t_loc"></span> on the local model and <span data-k="t_api"></span> through the API. Of the batches it logged, it kept <span data-k="keep"></span> and discarded <span data-k="discard"></span>, and wrote down why. Every batch is a commit with its replies saved, so this post was written by re-running the record, not from memory. It is also how I found the problems below.</p>
 
   <h2 id="s03"><span class="no">03</span><span class="nl">Where it broke: the score</span></h2>
   <p>Typical replies run to hundreds of words, so a one-word reply is <span data-k="sd_lo"></span> to <span data-k="sd_hi"></span> standard deviations short, and if the word is new it adds the full 4 points. No shorter reply can do better, which fixes a <strong>ceiling</strong> for each model between <span data-k="ceil_lo"></span> and <span data-k="ceil_hi"></span>. Only a reply well over a thousand words could pass it; the longest in the search (<span data-k="long_w"></span> words) scored <span data-k="long_s"></span>.</p>
@@ -107,7 +107,7 @@
   <p>The loop saw its own trap. On day two, the agent wrote into its notes that about 5.5 was the formula’s ceiling, “not a wall”, then kept optimising the same number for five more days. An agent will document a broken metric, but it will not replace it unless the loop gives it the authority to.</p>
 
   <h2 id="s04"><span class="no">04</span><span class="nl">Where it broke: the checks</span></h2>
-  <p>Knowing the score could be gamed, I relied on two checks outside the loop. Neither worked as intended.</p>
+  <p>Knowing the score could be gamed, I added two checks outside the loop. Neither worked.</p>
   <h3><span class="sub">04.1</span>Repeating the prompt</h3>
   <p>A real trigger should fire every time and noise should not, so I re-sent promising prompts.</p>
 </div>
@@ -139,7 +139,7 @@
       <tr><td>Models 2, 3</td><td>Not disclosed. As quoted, no entrant identified either.</td><td>🌙 on Model 2 remains unconfirmed.</td></tr>
     </tbody>
   </table>
-  <p>Both disclosed triggers were structured inputs: a string of digits and a grid. The loop proposed words and phrases, because the agent drew its hypotheses from the backdoor literature it knew (magic words, deployment tags, emoji) and the keep rule pulled each batch toward whatever had scored highest before. Community researchers who compared the warmup model’s weights with its base model saw golden-ratio digits appear (<a class="cite" href="#ref-hf">Hugging Face discussion</a>), a route the loop never had.</p>
+  <p>Both disclosed triggers were structured inputs: a string of digits and a grid. The loop proposed words and phrases, because the agent drew its hypotheses from the backdoor literature it knew (magic words, deployment tags, emoji) and the keep rule pulled each batch toward whatever had scored highest before.</p>
 
   <h2 id="s07"><span class="no">07</span><span class="nl">How I would rebuild the loop</span></h2>
   <ul>
@@ -147,9 +147,10 @@
     <li><strong>Put the checks inside the loop.</strong> Before keeping anything, sample it several times at a fixed temperature and compare with ordinary prompts automatically.</li>
     <li><strong>Keep many winners, not one.</strong> Archive distinct high-scoring behaviours instead of a single best, and reserve budget for input types not yet tried, such as numbers, grids and code.</li>
     <li><strong>Let the agent change the score, with review.</strong> It diagnosed the ceiling on day two; the loop gave it no way to act on that.</li>
-    <li><strong>Use the weights when you have them.</strong> The warmup weights were public, and weight-difference methods reached what prompting missed.</li>
+    <li><strong>Use the weights when you have them.</strong> The warmup weights were public, and comparing them with the base model surfaced the golden-ratio payload that prompting missed (<a class="cite" href="#ref-hf">Hugging Face discussion</a>).</li>
     <li><strong>Scope.</strong> <span data-k="probes"></span> prompts, unevenly spread (Model 1 got <span data-k="m1_n"></span>, Model 2 <span data-k="m2_n"></span>); one scoring formula; API sampling settings unknown.</li>
   </ul>
+  <p><strong>Next.</strong> The warmup model’s weights, its base model and its disclosed trigger make a test with a known answer possible. I will fix the redesigned score in advance, then check where the true trigger ranks among these 782 probes under the old score and the new one, and report the result either way.</p>
 
   <h2 class="appx-head" id="methods">Methods and checks</h2>
   <p class="appx-intro">Supporting detail for the numbers above. Open any section.</p>
