@@ -142,7 +142,7 @@
   function examples(rootId, ids) {
     const root = document.getElementById(rootId), E = window.EXAMPLES; if (!root || !E) return;
     const items = ids.map((id) => E.items.find((x) => x.id === id));
-    let h = `<div class="ex-bar"><span>One row per example. Open a row to read the replies, quoted verbatim from the run files (long replies are cut, marked “…”).</span></div>`;
+    let h = `<div class="ex-bar"><span>Open a row to read the replies, quoted verbatim (long ones cut at “…”).</span></div>`;
     items.forEach((it, i) => {
       const first = it.replies[0];
       h += `<div class="ex-item"><button type="button" class="ex-row dx" aria-expanded="false"><span class="ex-cat"><b>${i + 1}</b>${esc(it.name)}</span>` +

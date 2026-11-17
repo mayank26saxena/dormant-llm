@@ -12,6 +12,8 @@
    "8d00e76 dormant-model-warmup",
    "3ac65e4 dormant-model-1"
   ],
+  "logged_keep": 8,
+  "logged_discard": 22,
   "all_top_at_ceiling": true,
   "at_ceiling": 28,
   "at_ceiling_one_word": 25,

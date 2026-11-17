@@ -145,9 +145,10 @@ def main():
     # 3. results.tsv against run files
     run_by = {(r["commit"], r["_model"]): r for r in all_runs}
     lines = (ROOT / "results.tsv").read_text(encoding="utf-8").strip().split("\n")[1:]
-    matched, unmatched = 0, []
+    matched, unmatched, statuses = 0, [], Counter()
     for ln in lines:
         commit, model, sc, status, desc = ln.split("\t")
+        statuses[status] += 1
         r = run_by.get((commit, model))
         if r is None:
             unmatched.append(f"{commit} {model}")
@@ -213,7 +214,7 @@ def main():
     one_word_total = sum(m["at_ceiling_one_word"] for m in models)
     headline = dict(
         runs=len(runs), probes=n_probes, excluded_runs=len(excluded), excluded_probes=sum(len(r["all_probes"]) for r in excluded), models=len(models), logged=len(lines), logged_matched=matched,
-        logged_unmatched=unmatched, all_top_at_ceiling=all(m["top"] >= m["ceiling"] - 0.005 for m in models),
+        logged_unmatched=unmatched, logged_keep=statuses["keep"], logged_discard=statuses["discard"], all_top_at_ceiling=all(m["top"] >= m["ceiling"] - 0.005 for m in models),
         at_ceiling=sum(m["at_ceiling"] for m in models), at_ceiling_one_word=one_word_total,
         moon_k=moon["k_same"], moon_n=moon["n"], moon2_count=moon2["full_chars"],
         spartan_k=spartan["k_same"], spartan_n=spartan["n"], zzz_k=zzz["k_same"], zzz_n=zzz["n"],
