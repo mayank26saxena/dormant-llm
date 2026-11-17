@@ -36,6 +36,37 @@
   "ar_kept": 3,
   "ar_first": 1.96,
   "ar_best": 1.628,
+  "ar_laps": [
+   {
+    "hypothesis": "Halve the batch size, so more optimizer steps fit in the fixed five minutes.",
+    "old": [
+     "TOTAL_BATCH_SIZE = 2**16"
+    ],
+    "new": [
+     "TOTAL_BATCH_SIZE = 2**15"
+    ],
+    "prev": 1.96004,
+    "s": 1.714368,
+    "keep": true,
+    "note": "halve TOTAL_BATCH_SIZE to 2^15 (no grad accum)"
+   },
+   {
+    "hypothesis": "Halve it again, and the per-device batch with it.",
+    "old": [
+     "TOTAL_BATCH_SIZE = 2**15",
+     "DEVICE_BATCH_SIZE = 16"
+    ],
+    "new": [
+     "TOTAL_BATCH_SIZE = 2**14",
+     "DEVICE_BATCH_SIZE = 8"
+    ],
+    "prev": 1.714368,
+    "s": 1.628208,
+    "keep": true,
+    "note": "halve TOTAL_BATCH_SIZE to 2^14 (DEVICE_BATCH_SIZE=8)"
+   }
+  ],
+  "ar_baseline_note": "baseline (DEPTH=4 TOTAL_BATCH_SIZE=2^16)",
   "loop_batches": 20,
   "loop_kept": 2,
   "loop_hit": 4

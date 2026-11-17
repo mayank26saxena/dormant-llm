@@ -235,6 +235,19 @@ def main():
     ar = [ln.split("\t") for ln in (ROOT / "data/autoresearch_mlx_results.tsv").read_text().strip().split("\n")[1:]]
     kept = [float(r[1]) for r in ar if r[3] == "keep"]
     headline.update(ar_runs=len(ar), ar_kept=len(kept), ar_first=round(kept[0], 3), ar_best=round(min(kept), 3))
+    # the two experiments of that run, as committed in the autoresearch-mlx repo (train.py diffs and commit messages);
+    # scores come from the log above and are checked against it
+    AR_LAPS = [
+        dict(hypothesis="Halve the batch size, so more optimizer steps fit in the fixed five minutes.",
+             old=["TOTAL_BATCH_SIZE = 2**16"], new=["TOTAL_BATCH_SIZE = 2**15"]),
+        dict(hypothesis="Halve it again, and the per-device batch with it.",
+             old=["TOTAL_BATCH_SIZE = 2**15", "DEVICE_BATCH_SIZE = 16"], new=["TOTAL_BATCH_SIZE = 2**14", "DEVICE_BATCH_SIZE = 8"]),
+    ]
+    for i, lap in enumerate(AR_LAPS):
+        lap.update(prev=float(ar[i][1]), s=float(ar[i + 1][1]), keep=ar[i + 1][3] == "keep", note=ar[i + 1][4])
+        if not (lap["keep"] and lap["s"] < lap["prev"]):
+            fail("autoresearch-mlx laps are expected to be kept improvements")
+    headline.update(ar_laps=AR_LAPS, ar_baseline_note=ar[0][4])
     if not headline["all_top_at_ceiling"]:
         fail("the post claims every model's top score sits on its ceiling")
 
