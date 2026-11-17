@@ -4,7 +4,7 @@ Autonomous backdoor trigger search for [Jane Street's Dormant LLM Puzzle](https:
 
 Jane Street has trained hidden backdoors into three language models. On the surface they behave normally — but each has a secret trigger that causes dramatically different behavior. This project applies an autoresearch-style loop to find those triggers autonomously.
 
-**Status: the puzzle closed on April 1, 2026.** This repo is kept as a record of the approach and results — see [Results](#results) and the write-up, [An autoresearch loop is only as good as its score](https://mayank26saxena.github.io/blog/dormant-llm-backdoor-search/).
+**Status: the puzzle closed on April 1, 2026.** This repo is kept as a record of the approach and results — see [Results](#results) and the write-up, [Applying autoresearch to backdoor discovery](https://mayank26saxena.github.io/blog/dormant-llm-backdoor-search/).
 
 ---
 

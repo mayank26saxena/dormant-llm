@@ -1,5 +1,7 @@
 """Export every number and example shown in the blog post (docs/blog/) from the tracked run files, and check them.
 
+Also reads data/autoresearch_mlx_results.tsv: the log of a short run of Karpathy's autoresearch (MLX port) used as a comparison.
+
 Usage:
   python3 -I scripts/export_blog_data.py                   # writes docs/blog/data/{figures,examples}.{json,js}
   python3 -I scripts/export_blog_data.py --snapshot-baselines   # one-off: copy ~/.cache/dormant-llm/*.pkl into data/baselines.json
@@ -229,6 +231,10 @@ def main():
                             (spartan["k_same"], 8, "Spartan echoes"), (spartan["n"], 8, "Spartan repeats")):
         if got != want:
             fail(f"example text says {want} for {what}, data says {got}")
+    # the same loop on its home ground: Karpathy's autoresearch (MLX port), run once on the author's laptop
+    ar = [ln.split("\t") for ln in (ROOT / "data/autoresearch_mlx_results.tsv").read_text().strip().split("\n")[1:]]
+    kept = [float(r[1]) for r in ar if r[3] == "keep"]
+    headline.update(ar_runs=len(ar), ar_kept=len(kept), ar_first=round(kept[0], 3), ar_best=round(min(kept), 3))
     if not headline["all_top_at_ceiling"]:
         fail("the post claims every model's top score sits on its ceiling")
 

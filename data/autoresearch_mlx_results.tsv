@@ -1,0 +1,4 @@
+commit	val_bpb	memory_gb	status	description
+7a4e3cc	1.960040	10.8	keep	baseline (DEPTH=4 TOTAL_BATCH_SIZE=2^16)
+c24901d	1.714368	10.7	keep	halve TOTAL_BATCH_SIZE to 2^15 (no grad accum)
+b278991	1.628208	5.8	keep	halve TOTAL_BATCH_SIZE to 2^14 (DEVICE_BATCH_SIZE=8)

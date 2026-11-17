@@ -31,7 +31,11 @@
   "secs_local": 103,
   "secs_api": 307,
   "runs_local": 20,
-  "runs_api": 20
+  "runs_api": 20,
+  "ar_runs": 3,
+  "ar_kept": 3,
+  "ar_first": 1.96,
+  "ar_best": 1.628
  },
  "models": [
   {

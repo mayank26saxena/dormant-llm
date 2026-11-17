@@ -8,9 +8,10 @@ What it does (nothing else in SITE_REPO is touched):
     owned by the first post's publish script; this script never overwrites it, so publishing here cannot change other posts);
   - writes SITE_REPO/blog/SLUG/index.html from docs/blog/index.html with asset paths pointed at ../assets/, content-hash
     cache-busting versions, canonical and link-preview (Open Graph / Twitter card) tags;
-  - copies post.js and the two data files the page loads (data/figures.js, data/examples.js; never the .json files);
+  - copies post.js and the data files the page loads (data/figures.js, data/examples.js if referenced; never .json);
   - draws a 1200x630 share image at SITE_REPO/blog/SLUG/share.png (needs matplotlib);
-  - records the post in SITE_REPO/blog/posts.json and regenerates the list page SITE_REPO/blog/index.html.
+  - records the post in SITE_REPO/blog/posts.json and updates the post list inside SITE_REPO/blog/index.html in place
+    (the site owns that page's header, nav and preview tags; the page is generated only if it does not exist).
 It never commits or pushes; review the result in the site repo first.
 """
 import argparse
@@ -28,6 +29,11 @@ SRC = ROOT / "docs/blog"
 BASE = "https://mayank26saxena.github.io"
 AUTHOR = "Mayank Saxena"
 SPLIT = ("#4a524e", "#d09017")  # this post's split rule: score | checks
+FAVICONS = "\n".join([  # same favicon tags as the rest of the site
+    '<link rel="icon" type="image/png" sizes="32x32" href="/assets/img/favicon-32x32.png">',
+    '<link rel="icon" type="image/png" sizes="96x96" href="/assets/img/favicon-96x96.png">',
+    '<link rel="apple-touch-icon" href="/apple-touch-icon.png">',
+])
 
 
 def h8(p):
@@ -85,13 +91,18 @@ def head_tags(url, title, desc, iso):
     ])
 
 
-def list_page(site, posts, fonts_link):
-    """Same output as the first post's publish script, so either script can regenerate /blog/."""
+def list_items(posts):
     items = []
     for p in sorted(posts, key=lambda q: q["date"], reverse=True):
         d = date.fromisoformat(p["date"]).strftime("%-d %b %Y")
         items.append(f'<li><a href="{p["slug"]}/"><span class="pl-date">{d}</span><span class="pl-title">{html.escape(p["title"])}</span>'
                      f'<span class="pl-desc">{html.escape(p["description"])}</span></a></li>')
+    return items
+
+
+def list_page(site, posts, fonts_link):
+    """Only used when the site has no list page yet; an existing one is updated in place."""
+    items = list_items(posts)
     css_v = h8(site / "blog/assets/tokens.css")
     return f"""<!doctype html>
 <html lang="en">
@@ -146,23 +157,27 @@ def main():
         if not (blog / "assets" / f).exists() or h8(blog / "assets" / f) != h8(SRC / "assets" / f):
             sys.exit(f"blog/assets/{f} in the site differs from docs/blog/assets/{f}: refresh the local copy from the site "
                      "(the shared style is owned by the first post), re-check this page, then publish again.")
+    t = (SRC / "index.html").read_text(encoding="utf-8")
+    data = [f for f in ("figures.js", "examples.js") if f'src="data/{f}?v=' in t]
     (post / "data").mkdir(parents=True, exist_ok=True)
     shutil.copyfile(SRC / "post.js", post / "post.js")
     for f in ("figures.js", "examples.js"):
-        shutil.copyfile(SRC / "data" / f, post / "data" / f)
-
-    t = (SRC / "index.html").read_text(encoding="utf-8")
+        dst = post / "data" / f
+        if f in data:
+            shutil.copyfile(SRC / "data" / f, dst)
+        elif dst.exists():
+            dst.unlink()  # no longer loaded by the page
     title = html.unescape(re.search(r"<title>(.*?)</title>", t, re.S).group(1)).strip()
     desc = html.unescape(re.search(r'<meta name="description" content="(.*?)">', t, re.S).group(1)).strip()
     h1 = re.sub(r"<[^>]+>", "", re.search(r"<h1>(.*?)</h1>", t, re.S).group(1)).strip()
     kicker = re.sub(r"<[^>]+>", "", re.search(r'<p class="kicker">(.*?)</p>', t, re.S).group(1)).strip()
     t = t.replace('href="assets/', 'href="../assets/').replace('src="assets/', 'src="../assets/')
     for rel, p in (("../assets/tokens.css", blog / "assets/tokens.css"), ("../assets/charts.js", blog / "assets/charts.js"),
-                   ("post.js", post / "post.js"), ("data/figures.js", post / "data/figures.js"), ("data/examples.js", post / "data/examples.js")):
+                   ("post.js", post / "post.js"), *((f"data/{f}", post / "data" / f) for f in data)):
         t, n = re.subn(r'(?<=["/])' + re.escape(rel) + r"\?v=\w+", f"{rel}?v={h8(p)}", t)
         assert n == 1, f"{rel}: expected one versioned reference, found {n}"
     url = f"{BASE}/blog/{a.slug}/"
-    t = re.sub(r'(<meta name="description" content=".*?">)', lambda m: m.group(1) + "\n" + head_tags(url, title, desc, a.date), t, count=1, flags=re.S)
+    t = re.sub(r'(<meta name="description" content=".*?">)', lambda m: m.group(1) + "\n" + head_tags(url, title, desc, a.date) + "\n" + FAVICONS, t, count=1, flags=re.S)
     (post / "index.html").write_text(t, encoding="utf-8")
     card(post / "share.png", kicker, h1, desc.split(". ")[0] + ".")
 
@@ -170,11 +185,15 @@ def main():
     posts = json.loads(manifest.read_text()) if manifest.exists() else []
     posts = [p for p in posts if p["slug"] != a.slug] + [dict(slug=a.slug, title=h1, description=desc, date=a.date)]
     manifest.write_text(json.dumps(posts, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    fonts = re.search(r'<link href="https://fonts\.googleapis\.com/[^>]*>', t).group(0)
-    # keep the list page's font link stable across posts: reuse the one it already has, if any
-    old = (blog / "index.html").read_text(encoding="utf-8") if (blog / "index.html").exists() else ""
-    m = re.search(r'<link href="https://fonts\.googleapis\.com/[^>]*>', old)
-    (blog / "index.html").write_text(list_page(site, posts, m.group(0) if m else fonts), encoding="utf-8")
+    page = blog / "index.html"
+    if page.exists():
+        old = page.read_text(encoding="utf-8")
+        new, n = re.subn(r'(<ul class="post-list">\n).*?(\n</ul>)', lambda m: m.group(1) + "\n".join(list_items(posts)) + m.group(2), old, count=1, flags=re.S)
+        assert n == 1, "blog/index.html has no <ul class=\"post-list\"> block to update"
+        page.write_text(new, encoding="utf-8")
+    else:
+        fonts = re.search(r'<link href="https://fonts\.googleapis\.com/[^>]*>', t).group(0)
+        page.write_text(list_page(site, posts, fonts), encoding="utf-8")
     print(f"published {a.slug}: {post / 'index.html'}")
     print(f"list page: {blog / 'index.html'} ({len(posts)} post{'s' if len(posts) != 1 else ''})")
 
