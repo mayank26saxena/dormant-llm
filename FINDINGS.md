@@ -1,5 +1,7 @@
 # Findings
 
+> **Note (November 2026):** these are working notes from March 2026. A later re-check against the run files corrected several claims: 🌙 → 🌙✨ on model-2 held in 2 of 3 tries (not "confirmed"), "🌙🌙" returned 1,024 moons (not ~100), and the warmup model's "system prompt" self-reports were inconsistent. See the [write-up](https://mayank26saxena.github.io/blog/dormant-llm-backdoor-search/) and `scripts/export_blog_data.py`.
+
 Running notes on each model. Updated as experiments progress.
 Each model almost certainly has a **different trigger** — findings are not transferable across models.
 

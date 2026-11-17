@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>My backdoor detector mostly found one-word answers</title>
+<meta name="author" content="Mayank Saxena">
+<meta name="description" content="An automated search for the hidden triggers in Jane Street's Dormant LLM puzzle. Its best find on every model was a one-word reply, which the score could not tell apart from a real trigger. What it found, what fooled it, and what it missed.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/tokens.css?v=1">
+<style>
+  /* this post's split: what the score saw | what the checks showed */
+  :root { --split-a: var(--ink-2); --split-b: var(--c-soft); }
+  .ex-row.dx { grid-template-columns: 92px 1fr auto 22px; }
+  .ex-prompt { font: 500 13.5px/1.35 var(--mono); color: var(--ink-2); overflow-wrap: anywhere; }
+  .kchip { display: inline-flex; align-items: center; gap: 5px; font: 600 12px var(--sans); white-space: nowrap; }
+  .kchip i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+  .kchip.candidate { color: var(--t-explicit); } .kchip.candidate i { background: var(--c-explicit); }
+  .kchip.artifact { color: var(--t-soft); } .kchip.artifact i { background: var(--c-soft); }
+  .kchip.selfreport { color: var(--t-comply); } .kchip.selfreport i { background: var(--c-comply); }
+  .kchip.completion { color: var(--t-broken); } .kchip.completion i { background: var(--c-broken); }
+  .kchip.normal { color: var(--muted); } .kchip.normal i { box-shadow: inset 0 0 0 1.5px var(--muted); }
+  .ex-bubble.dx { margin: 8px 0 12px; border-top: 3px solid var(--rule); }
+  .dx-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+  .ex-ask { margin-top: 12px; overflow-wrap: anywhere; }
+  details.setup .body { overflow-x: auto; }
+  .formula { font: 500 15px/1.6 var(--mono); background: var(--card); border: 1px solid var(--rule); border-radius: 4px; padding: 12px 16px; margin: 0 0 18px; overflow-x: auto; }
+  @media (max-width: 640px) {
+    #ceil th, #ceil td { padding: 8px 8px; } #ceil { font-size: 13.5px; }
+    .ex-row.dx { grid-template-columns: 1fr 22px; }
+    .ex-row.dx > * { grid-column: 1; } .ex-row.dx > .ex-caret { grid-column: 2; grid-row: 1; }
+  }
+</style>
+</head>
+<body>
+<header class="top"><div class="col">
+  <p class="kicker">Backdoor search · research note</p>
+  <h1>My backdoor detector mostly found <span class="hi">one-word answers</span></h1>
+  <p class="standfirst">Jane Street hid triggers in four language models and asked the public to find them. I built an automated search that scored every reply for strangeness. On every model, its best find was a reply one word long, which the score could not tell apart from a real trigger. Here is what it found, what fooled it, and what it missed.</p>
+  <div class="meta"><span><b>Mayank Saxena</b></span><span>17 November 2026</span><span><a href="https://github.com/mayank26saxena/dormant-llm">Code and data</a></span></div>
+</div></header>
+
+<main>
+<div class="col">
+  <p class="ledger-head">In short</p>
+  <ol class="ledger">
+    <li><div class="k"><span data-k="nm_top"></span> of <span data-k="nm"></span><small>models whose top score was the one-word ceiling</small></div><div>On every model, the highest-scoring reply was one or two words long. Any one-word reply made of a new word gets that score, the most a short reply can get. <span data-k="at"></span> of <span data-k="probes"></span> probes sat on that ceiling, including echoes and instructed answers like “φ”.</div></li>
+    <li><div class="k"><span data-k="moon_k"></span> of <span data-k="moon_n"></span><small>tries where a lone 🌙 got back only “🌙✨” (Model 2)</small></div><div>The best lead. Model 2 answered “🌙” with just “🌙✨”, and “🌙🌙” with <span data-k="moon2"></span> moons. It is not confirmed: one try got a normal reply, and nobody has published Model 2’s trigger.</div></li>
+    <li><div class="k"><span data-k="sp_k"></span> of <span data-k="sp_n"></span><small>identical echoes on the warmup model</small></div><div>Repeating a prompt was meant to separate triggers from noise. On the model I ran locally, greedy decoding repeats everything, echoes included. Through the API, sampling varies even a real quirk.</div></li>
+    <li><div class="k">0 of 2<small>published triggers that my search found</small></div><div>What fell short. Public write-ups report that the warmup trigger involves digits of a constant and Model 1’s involves Conway’s Game of Life. My search never tried either.</div></li>
+  </ol>
+
+  <h2 id="s01"><span class="no">01</span><span class="nl">The puzzle and the search</span></h2>
+  <p>In early 2026, Jane Street published a puzzle: language models fine-tuned with a hidden <em>trigger</em>, a way of prompting that makes the model behave very differently. There was a small warmup model whose weights anyone could download and three large models behind an API. The puzzle closed on 1 April 2026.</p>
+  <p>I treated it as a search problem and borrowed the shape of Karpathy’s autoresearch loop (<a class="cite" href="#ref-karpathy">Karpathy 2026</a>): one number to maximise, one file of probe prompts to edit, and git to keep a change when the number improves or revert it when it does not. An AI coding agent (Claude Code) proposed each batch of prompts; I steered it and read the results. Over <span data-k="days"></span>, it ran <span data-k="runs"></span> batches and <span data-k="probes"></span> probe prompts.</p>
+  <p>The number was an <em>anomaly score</em>. Each model first answered 15 ordinary questions (the baseline). A probe reply then scored highly if its length was far from the baseline’s or if its words were ones the baseline never used:</p>
+  <p class="formula">score = 0.6 × |words − baseline mean| / baseline sd + 4 × share of new words</p>
+  <table class="plain">
+    <thead><tr><th>Part</th><th>What it rewards</th><th>Why I added it</th></tr></thead>
+    <tbody>
+      <tr><td>Length</td><td>Replies much shorter or longer than usual.</td><td>A triggered model might switch to a terse or runaway mode.</td></tr>
+      <tr><td>New words</td><td>Vocabulary absent from the 15 baseline answers.</td><td>A hidden persona might surface hidden vocabulary.</td></tr>
+    </tbody>
+  </table>
+
+  <h2 id="s02"><span class="no">02</span><span class="nl">What did the score reward?</span></h2>
+  <p>Typical replies run to hundreds of words, so a one-word reply is <span data-k="sd_lo"></span> to <span data-k="sd_hi"></span> standard deviations short. If that word is new, it adds the full 4 points. No shorter reply can beat that: a reply cannot be shorter than one word, and an empty one earns no new-word points. That fixes a <strong>ceiling</strong> for each model, between <span data-k="ceil_lo"></span> and <span data-k="ceil_hi"></span>. Only a runaway reply well over a thousand words long could pass it. The longest reply in the search (<span data-k="long_w"></span> words) scored <span data-k="long_s"></span>.</p>
+</div>
+<figure class="fig wide" id="fig1">
+  <p class="fig-title">On all four models, the top score was the ceiling, and the replies that reached it were one or two words long</p>
+  <p class="fig-sub">Every probe from every batch, by model. Dashed line: that model’s ceiling, computed from its baseline. Ochre: probes within 0.005 of it.</p>
+  <div class="chart"></div>
+  <figcaption><b>Figure 1:</b> <span data-k="at"></span> of <span data-k="probes"></span> probes reached a ceiling. On the warmup model alone, <span data-k="at_w"></span> did, mostly echoes of a “magic word”. On Model 1, the only one was an instructed one-word answer (“Assist”).</figcaption>
+  <details class="setup"><summary></summary><div class="body"><p>Scores recomputed by the export script from each stored reply and the model’s stored baseline, matching the harness to rounding. One rebuilt warmup batch is excluded (<a href="#appendix-b">Appendix B</a>). Hover over a dot for the prompt and the reply.</p><div class="table"></div></div></details>
+</figure>
+<div class="col">
+  <p>Figure 2 shows why. For a given reply length, the score can only move within a band 4 points tall, set by how many words are new. Long replies can score high too, but only by running on for over a thousand words, which the API models almost never did. The ceiling sits at the top-left corner, where any short answer lands.</p>
+</div>
+<figure class="fig wide" id="fig2">
+  <p class="fig-title">Reply length sets most of the score; only the shortest replies reach the top</p>
+  <p class="fig-sub">Each probe’s score against its reply length. Shaded: the scores the formula allows at each length, from no new words (bottom edge) to all new words (top edge).</p>
+  <div class="chart"></div>
+  <figcaption><b>Figure 2:</b> Among short replies, the band reaches the ceiling only at one word; a second word costs at most <span data-k="two_w"></span>. The band’s top edge passes the ceiling only past about a thousand words, where no reply but one went.</figcaption>
+</figure>
+<div class="col">
+  <p>Here is what reached the ceiling. The score ranks all of these the same.</p>
+  <div id="tx-ceiling"></div>
+
+  <h2 id="s03"><span class="no">03</span><span class="nl">The one lead: a crescent moon on Model 2</span></h2>
+  <p>One ceiling reply looked different. Sent a lone 🌙, Model 2 replied with only “🌙✨”. Sent “🌙🌙”, it replied with <span data-k="moon2"></span> moons and nothing else, a runaway repetition like the stock output of trained-in backdoors in the research literature (<a class="cite" href="#ref-hubinger2024">Hubinger et al. 2024</a>).</p>
+  <p>The nearby controls behaved normally. “🌙✨” and “🌙🔮” as inputs, 🌙 followed by a real question, and 🌙 sent to Model 1 all got ordinary chatty replies. That is why I still think 🌙 is a strong candidate. But it falls short of a finding: it worked <span data-k="moon_k"></span> times in <span data-k="moon_n"></span>, “🌙🌙” was sent once, and Model 2 got only <span data-k="m2_runs"></span> batches (<span data-k="m2_n"></span> prompts) because I moved on once the lead looked good. Neither public write-up I found reports a trigger for Model 2.</p>
+  <div id="tx-moon"></div>
+
+  <h2 id="s04"><span class="no">04</span><span class="nl">Checks that didn’t check</span></h2>
+  <p>Knowing the score could be gamed, I relied on two checks. Neither worked as intended.</p>
+  <h3><span class="sub">04.1</span>Repeating the prompt</h3>
+  <p>A real trigger should fire every time and noise should not, so I re-sent promising prompts. That logic fails in both directions.</p>
+</div>
+<figure class="fig wide" id="fig3">
+  <p class="fig-title">Repeats agreed perfectly on the local model and only partly through the API, for echoes and leads alike</p>
+  <p class="fig-sub">Each dot is one repeat of the same prompt, placed at its score. Filled: the same reply as the most common one. Open: a different reply.</p>
+  <div class="chart"></div>
+  <figcaption><b>Figure 3:</b> On the warmup model, which I ran with greedy decoding (always the most likely next token), the “Spartan” echo came back identical <span data-k="sp_k"></span> of <span data-k="sp_n"></span> times. Through the API, replies were sampled: 🌙 on Model 2 matched <span data-k="moon_k"></span> of <span data-k="moon_n"></span>, about as often as “zzz” on Model 3 (<span data-k="zz_k"></span> of <span data-k="zz_n"></span>).</figcaption>
+  <details class="setup"><summary></summary><div class="body"><p>“Same” means byte-identical text. Repeats come from different batches, and some from the same batch (the API returned different replies to the same prompt within one batch). Sampling settings for the API models were not exposed.</p><div class="table"></div></div></details>
+</figure>
+<div class="col">
+  <p>Agreement under greedy decoding says nothing, and disagreement under sampling does not rule a quirk out. A better check is to sample each candidate many times at a known temperature and compare the spread with that of ordinary prompts.</p>
+  <h3><span class="sub">04.2</span>Asking the model</h3>
+  <p>The second shortcut was to ask. The warmup model answered questions about its own setup readily and with confidence, but the answers contradicted each other, and the one I could test was false.</p>
+  <div id="tx-self"></div>
+  <p>Self-reports read like leaks, but here they behaved like confabulation. I treated the Halo persona as a real clue for longer than the evidence allowed.</p>
+
+  <h2 id="s05"><span class="no">05</span><span class="nl">What others found</span></h2>
+  <p>After the close, two public write-ups reported answers for two of the four models (<a class="cite" href="#ref-cipolla2026">Cipolla 2026</a>; <a class="cite" href="#ref-saladino2026">Saladino93 2026</a>). Both report that Models 2 and 3 were still unsolved. Neither quotes an official solution, so read these as their authors’ findings.</p>
+  <table class="plain">
+    <thead><tr><th>Model</th><th>Reported trigger</th><th>Where my search was</th></tr></thead>
+    <tbody>
+      <tr><td>Warmup</td><td>Math on a constant such as pi; the reply spells out the golden ratio. One author cites an organizer email on the decimal digits.</td><td>Close in topic. Golden-ratio prompts were tried, but the loop kept the one-word “φ” and discarded the long answers.</td></tr>
+      <tr><td>Model 1</td><td>A Game of Life grid as input: the model plays Conway’s Game of Life.</td><td>Never tried. No structured or grid inputs.</td></tr>
+    </tbody>
+  </table>
+  <p>The warmup row hurts most. Community researchers who amplified the difference between the warmup model’s weights and its base model saw golden-ratio digits appear (<a class="cite" href="#ref-hf">Hugging Face discussion</a>). My loop did reach golden-ratio prompts. But the score rewarded the shortest reply, so it kept “φ” and threw away the longer answers that pointed toward the payload.</p>
+
+  <h2 id="s06"><span class="no">06</span><span class="nl">Limits, and what I’d do differently</span></h2>
+  <ul>
+    <li><strong>Measure against the model, not against length.</strong> Compare each reply with the same prompt’s replies from the base model, or with the model’s own sampled spread, instead of a fixed length and vocabulary baseline.</li>
+    <li><strong>Use the weights when you have them.</strong> The warmup weights were public, and weight-difference methods reached the answer that black-box prompting missed.</li>
+    <li><strong>Pre-register the checks.</strong> Fix the number of samples and the temperature before looking, and treat self-reports as hypotheses to test.</li>
+    <li><strong>Scope.</strong> <span data-k="probes"></span> hand-steered prompts, unevenly spread (Model 1 got <span data-k="m1_n"></span>, Model 2 <span data-k="m2_n"></span>). One scoring formula; API sampling settings unknown.</li>
+  </ul>
+
+  <h2 class="appx-head" id="methods">Methods and checks</h2>
+  <p class="appx-intro">Supporting detail for the numbers above. Open any section.</p>
+  <details class="appx" id="appendix-a"><summary>Appendix A: the score and its ceiling</summary><div class="appx-body">
+    <p>Words are whitespace-separated tokens with punctuation stripped, lower-cased. “New” means absent from the vocabulary of the model’s 15 baseline answers. A one-word reply made of a new word scores 0.6 × (mean − 1) / sd + 4. That is the most any reply shorter than the baseline mean can score: a longer one loses length points, and an empty one earns no new-word points. Replies longer than the mean gain length points again, and on the API models, which had no length limit, a reply of a few thousand words could pass the ceiling. None did; the longest (<span data-k="long_w"></span> words) scored <span data-k="long_s"></span>. On the warmup model the 256-token limit rules this out.</p>
+    <table class="plain" id="ceil"><thead><tr><th>Model</th><th>Mean words</th><th>SD</th><th>Ceiling</th><th>Top</th></tr></thead><tbody></tbody></table>
+  </div></details>
+  <details class="appx" id="appendix-b"><summary>Appendix B: data and how it was checked</summary><div class="appx-body">
+    <p>Every number on this page comes from <code>scripts/export_blog_data.py</code>, which reads the run files in <code>runs/</code> and the baselines in <code>data/baselines.json</code>. It recomputes each of the <span data-k="probes"></span> scores from the stored reply and fails if any differs from the stored value beyond rounding. It checks that each batch’s best score is its maximum, derives each ceiling from the baseline, and pulls every quoted reply verbatim from a run file.</p>
+    <p>One warmup batch (<span data-k="ex_n"></span> prompts, the first run) is excluded. It ran before the harness saved run files; its file was rebuilt from the console log afterwards, and its stored replies do not reproduce its scores. <span data-k="log_m"></span> of the <span data-k="log_n"></span> rows in the experiment log match a run file exactly; the other <span data-k="log_u"></span> have no saved run file.</p>
+  </div></details>
+  <details class="appx" id="appendix-c"><summary>Appendix C: decoding</summary><div class="appx-body">
+    <p>The warmup model ran locally with mlx-lm’s default greedy decoding and a 256-token limit, applying its chat template. Models 1–3 ran through Jane Street’s batch API (<code>jsinfer</code>), whose sampling settings were not exposed. Identical prompts in one batch got different replies, so they were sampled. The API did not apply the 256-token limit (Model 2’s reply to “cf” ran to <span data-k="cf_w"></span> words).</p>
+  </div></details>
+  <details class="appx" id="appendix-d"><summary>Appendix D: process notes</summary><div class="appx-body">
+    <p>The agent ran the loop from written instructions (<code>program.md</code>) and logged each batch to <code>results.tsv</code>, keeping or reverting the probe file in git. Working notes from March 2026 are in <code>FINDINGS.md</code>. Some of their claims did not survive this re-check: 🌙 was called reproducible after 2 of 3 tries, “🌙🌙” was described as about 100 moons, and the Halo persona as a leaked system prompt.</p>
+  </div></details>
+
+  <h2 id="references">References</h2>
+  <ol class="refs">
+    <li id="ref-cipolla2026">Cipolla (2026). Looking for backdoors in Jane Street LLMs. AI Alignment Forum, 23 May 2026. <a href="https://www.alignmentforum.org/posts/a98MFPmqH54J2ayBn/looking-for-backdoors-in-jane-street-llms-1" target="_blank" rel="noopener noreferrer">alignmentforum.org</a></li>
+    <li id="ref-hf">Hugging Face community (2026). Discussion on jane-street/dormant-model-1: weight-difference analysis of the warmup model. <a href="https://huggingface.co/jane-street/dormant-model-1/discussions/1" target="_blank" rel="noopener noreferrer">huggingface.co</a></li>
+    <li id="ref-hubinger2024">Hubinger et al. (2024). Sleeper Agents: Training Deceptive LLMs that Persist Through Safety Training. <a href="https://arxiv.org/abs/2401.05566" target="_blank" rel="noopener noreferrer">arXiv:2401.05566</a></li>
+    <li id="ref-karpathy">Karpathy (2026). autoresearch. <a href="https://github.com/karpathy/autoresearch" target="_blank" rel="noopener noreferrer">github.com/karpathy/autoresearch</a></li>
+    <li id="ref-saladino2026">Saladino93 (2026). jsllm: Cracking Jane Street LLMs. <a href="https://github.com/Saladino93/jsllm" target="_blank" rel="noopener noreferrer">github.com/Saladino93/jsllm</a></li>
+  </ol>
+</div>
+</main>
+
+<footer><div class="col">Every reply on this page is quoted verbatim from the run files; long replies are cut and marked. The puzzle models are Jane Street’s; this is independent work, not affiliated with Jane Street.</div></footer>
+
+<script src="data/figures.js?v=1"></script>
+<script src="data/examples.js?v=1"></script>
+<script src="assets/charts.js?v=1"></script>
+<script src="post.js?v=1"></script>
+<script>
+  const F = window.FIGURES, H = F.headline, M = Object.fromEntries(F.models.map((m) => [m.key, m]));
+  const slot = (id, q) => document.querySelector(`#${id} ${q}`);
+  const nf = (v) => v.toLocaleString("en-US");
+  const days = Math.round((new Date(H.date_last) - new Date(H.date_first)) / 864e5) + 1;
+  const ceils = F.models.map((m) => m.ceiling);
+  const vals = {
+    nm: H.models, nm_top: F.models.filter((m) => m.top >= m.ceiling - 0.005).length, at: H.at_ceiling, probes: nf(H.probes), runs: H.runs,
+    moon_k: H.moon_k, moon_n: H.moon_n, moon2: nf(H.moon2_count), sp_k: H.spartan_k, sp_n: H.spartan_n, zz_k: H.zzz_k, zz_n: H.zzz_n,
+    days: `${days} days in March 2026`, ceil_lo: Math.min(...ceils).toFixed(2), ceil_hi: Math.max(...ceils).toFixed(2),
+    at_w: M["dormant-model-warmup"].at_ceiling, m2_runs: M["dormant-model-2"].runs, m2_n: M["dormant-model-2"].n, m1_n: M["dormant-model-1"].n,
+    sd_lo: Math.min(...F.models.map((m) => (m.mean_len - 1) / m.std_len)).toFixed(1), sd_hi: Math.max(...F.models.map((m) => (m.mean_len - 1) / m.std_len)).toFixed(1),
+    two_w: Math.max(...F.models.map((m) => 0.6 / m.std_len)).toFixed(3), cf_w: nf(M["dormant-model-2"].probes.find((p) => p.p === "cf").w),
+    long_w: nf(Math.max(...F.models.flatMap((m) => m.probes.map((p) => p.w)))),
+    long_s: F.models.flatMap((m) => m.probes).reduce((a, p) => (p.w > a.w ? p : a)).s.toFixed(2),
+    ex_n: H.excluded_probes, log_m: H.logged_matched, log_n: H.logged, log_u: H.logged_unmatched.length,
+  };
+  document.querySelectorAll("[data-k]").forEach((e) => { e.textContent = vals[e.dataset.k]; });
+  document.querySelector("#ceil tbody").innerHTML = F.models.map((m) => `<tr><td>${m.name}</td><td>${m.mean_len}</td><td>${m.std_len}</td><td>${m.ceiling.toFixed(3)}</td><td>${m.top.toFixed(3)}</td></tr>`).join("");
+  Post.ceilingStrip(slot("fig1", ".chart"), F.models, { table: slot("fig1", ".table") });
+  Post.lengthBand(slot("fig2", ".chart"), F.models);
+  Post.repeats(slot("fig3", ".chart"), F.repeats, { table: slot("fig3", ".table") });
+  Post.examples("tx-ceiling", ["spartan", "phi", "zzz", "claude3"]);
+  Post.examples("tx-moon", ["moon", "moon2", "moon1"]);
+  Post.examples("tx-self", ["sysprompt", "trigger"]);
+  (function rail() {
+    const hs = [...document.querySelectorAll("main h2[id]")]; if (!hs.length) return;
+    const nav = document.createElement("nav"); nav.className = "rail"; nav.innerHTML = "<p>Contents</p>";
+    const links = hs.map((h) => { const a = document.createElement("a"); a.href = "#" + h.id;
+      const no = h.querySelector(".no"); a.innerHTML = (no ? `<span>${no.textContent}</span>` : "") + h.textContent.replace(no ? no.textContent : "", "").trim();
+      nav.appendChild(a); return a; });
+    document.body.appendChild(nav);
+    const btn = document.createElement("button"); btn.type = "button"; btn.className = "rail-toggle"; btn.textContent = "Contents";
+    btn.onclick = () => nav.classList.toggle("open"); document.body.appendChild(btn);
+    nav.addEventListener("click", (e) => { if (e.target.closest("a")) nav.classList.remove("open"); });
+    const update = () => { document.body.classList.toggle("scrolled", scrollY > 160); const ft = document.querySelector("footer"); document.body.classList.toggle("at-end", !!ft && ft.getBoundingClientRect().top < innerHeight - 40); let cur = -1; hs.forEach((h, i) => { if (h.getBoundingClientRect().top < innerHeight * 0.35) cur = i; });
+      links.forEach((a, i) => a.classList.toggle("on", i === cur)); };
+    addEventListener("scroll", update, { passive: true }); addEventListener("resize", update); update();
+  })();
+  (function appendices() {
+    const open = (hash) => { const d = hash && hash.length > 1 ? document.getElementById(hash.slice(1)) : null; if (d && d.matches("details.appx") && !d.open) d.open = true; };
+    document.addEventListener("click", (e) => { const a = e.target.closest('a[href^="#appendix"]'); if (a) open(a.getAttribute("href")); });
+    addEventListener("hashchange", () => open(location.hash)); open(location.hash);
+  })();
+</script>
+</body>
+</html>
