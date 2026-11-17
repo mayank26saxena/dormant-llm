@@ -25,7 +25,13 @@
   "zzz_k": 2,
   "zzz_n": 4,
   "date_first": "2026-03-11",
-  "date_last": "2026-03-16"
+  "date_last": "2026-03-16",
+  "batch_min": 13,
+  "batch_max": 29,
+  "secs_local": 103,
+  "secs_api": 307,
+  "runs_local": 20,
+  "runs_api": 20
  },
  "models": [
   {

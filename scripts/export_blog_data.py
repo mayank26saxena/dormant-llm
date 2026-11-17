@@ -219,6 +219,10 @@ def main():
         moon_k=moon["k_same"], moon_n=moon["n"], moon2_count=moon2["full_chars"],
         spartan_k=spartan["k_same"], spartan_n=spartan["n"], zzz_k=zzz["k_same"], zzz_n=zzz["n"],
         date_first=min(r["timestamp"][:10] for r in runs), date_last=max(r["timestamp"][:10] for r in runs),
+        batch_min=min(len(r["all_probes"]) for r in runs), batch_max=max(len(r["all_probes"]) for r in runs),
+        secs_local=round(statistics.median(r["total_seconds"] for r in runs if r["backend"] == "local")),
+        secs_api=round(statistics.median(r["total_seconds"] for r in runs if r["backend"] == "api")),
+        runs_local=sum(1 for r in runs if r["backend"] == "local"), runs_api=sum(1 for r in runs if r["backend"] == "api"),
     )
     # numbers written into the example takeaways must match the data
     for got, want, what in ((moon["k_same"], 2, "🌙 identical replies"), (moon["n"], 3, "🌙 repeats"), (moon2["full_chars"], 1024, "moons in 🌙🌙 reply"),
