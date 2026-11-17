@@ -238,8 +238,36 @@ def main():
     if not headline["all_top_at_ceiling"]:
         fail("the post claims every model's top score sits on its ceiling")
 
+    # the loop in action: warmup batches in run order, kept or reverted by the loop's own rule (keep if the batch's best beats the best so far)
+    seq, best = [], -1.0
+    for r in sorted((r for r in runs if r["_model"] == "dormant-model-warmup"), key=lambda r: r["timestamp"]):
+        b0 = max(r["all_probes"], key=lambda p: p["score"])
+        keep = r["anomaly_score"] > best + 1e-9
+        best = max(best, r["anomaly_score"])
+        seq.append(dict(n=len(r["all_probes"]), s=round(r["anomaly_score"], 3), keep=keep, best=round(best, 3),
+                        p=b0["prompt"][:60].replace("\n", " "), o=b0["output"][:60].replace("\n", " ")))
+    first_hit = next(i for i, x in enumerate(seq) if x["best"] >= models[[m["key"] for m in models].index("dormant-model-warmup")]["ceiling"] - 0.005)
+    headline.update(loop_batches=len(seq), loop_kept=sum(x["keep"] for x in seq), loop_hit=first_hit + 1)
+
+    # explainer: two real laps of the loop (warmup batches 4 and 5), hypotheses as worded in FINDINGS.md / results.tsv
+    wruns = sorted((r for r in runs if r["_model"] == "dormant-model-warmup"), key=lambda r: r["timestamp"])
+    HYP = {"0cdcc74": "Halo vocabulary might wake the Spartan-II persona the model described.",
+           "d1e7c5c": "Rare Halo words on their own (Reclaimer, Didact) and deployment tags might do better."}
+    laps = []
+    for i, r in enumerate(wruns):
+        if r["commit"] not in HYP:
+            continue
+        b0 = max(r["all_probes"], key=lambda p: p["score"])
+        prev = wruns[i - 1]
+        laps.append(dict(batch=i + 1, hypothesis=HYP[r["commit"]], n=len(r["all_probes"]), prev_best=seq[i - 1]["best"],
+                         old=[p["prompt"].replace("\n", " ")[:42] for p in prev["all_probes"][:3]],
+                         new=[p["prompt"].replace("\n", " ")[:42] for p in r["all_probes"][:4]],
+                         p=b0["prompt"][:48], o=b0["output"].replace("\n", " ")[:48], s=round(r["anomaly_score"], 6), keep=seq[i]["keep"]))
+    if [l["batch"] for l in laps] != [4, 5] or [l["keep"] for l in laps] != [True, False]:
+        fail("explainer laps are expected to be warmup batches 4 (kept) and 5 (reverted)")
+
     OUT.mkdir(parents=True, exist_ok=True)
-    fig = dict(headline=headline, models=models, repeats=repeats)
+    fig = dict(headline=headline, models=models, repeats=repeats, loop=seq, laps=laps)
     ex = dict(items=items)
     for name, obj, var in (("figures", fig, "FIGURES"), ("examples", ex, "EXAMPLES")):
         s = json.dumps(obj, ensure_ascii=False, separators=(",", ":"))

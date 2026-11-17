@@ -1,7 +1,7 @@
 """Copy the blog post in docs/blog into the personal site repo, ready to publish under /blog/<slug>/.
 
 Usage:
-  uv run --no-project --with matplotlib python -I scripts/publish_blog.py SITE_REPO SLUG --date 2026-11-17
+  uv run --no-project --with matplotlib python -I scripts/publish_blog.py SITE_REPO SLUG --date 2026-03-16 --published 2026-11-17
 
 What it does (nothing else in SITE_REPO is touched):
   - checks that SITE_REPO/blog/assets/{tokens.css,charts.js} are byte-identical to docs/blog/assets/ (the shared house style is
@@ -147,11 +147,14 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("site")
     ap.add_argument("slug")
-    ap.add_argument("--date", required=True, help="publication date, YYYY-MM-DD")
+    ap.add_argument("--date", required=True, help="date shown in the blog list (YYYY-MM-DD); for a project write-up, the project date")
+    ap.add_argument("--published", help="actual publication date for the link-preview metadata (defaults to --date)")
     a = ap.parse_args()
     site = Path(a.site).expanduser().resolve()
     assert (site / "index.html").exists(), "SITE_REPO does not look like the site repo"
     date.fromisoformat(a.date)
+    if a.published:
+        date.fromisoformat(a.published)
     blog, post = site / "blog", site / "blog" / a.slug
     for f in ("tokens.css", "charts.js"):
         if not (blog / "assets" / f).exists() or h8(blog / "assets" / f) != h8(SRC / "assets" / f):
@@ -177,7 +180,7 @@ def main():
         t, n = re.subn(r'(?<=["/])' + re.escape(rel) + r"\?v=\w+", f"{rel}?v={h8(p)}", t)
         assert n == 1, f"{rel}: expected one versioned reference, found {n}"
     url = f"{BASE}/blog/{a.slug}/"
-    t = re.sub(r'(<meta name="description" content=".*?">)', lambda m: m.group(1) + "\n" + head_tags(url, title, desc, a.date) + "\n" + FAVICONS, t, count=1, flags=re.S)
+    t = re.sub(r'(<meta name="description" content=".*?">)', lambda m: m.group(1) + "\n" + head_tags(url, title, desc, a.published or a.date) + "\n" + FAVICONS, t, count=1, flags=re.S)
     (post / "index.html").write_text(t, encoding="utf-8")
     card(post / "share.png", kicker, h1, desc.split(". ")[0] + ".")
 
