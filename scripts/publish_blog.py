@@ -1,7 +1,7 @@
 """Copy the blog post in docs/blog into the personal site repo, ready to publish under /blog/<slug>/.
 
 Usage:
-  uv run --no-project --with matplotlib python -I scripts/publish_blog.py SITE_REPO SLUG --date 2026-03-16 --published 2026-11-17
+  uv run --no-project --with matplotlib python -I scripts/publish_blog.py SITE_REPO SLUG --date 2026-03-01 --published 2026-11-17
 
 What it does (nothing else in SITE_REPO is touched):
   - checks that SITE_REPO/blog/assets/{tokens.css,charts.js} are byte-identical to docs/blog/assets/ (the shared house style is
@@ -186,9 +186,13 @@ def main():
 
     manifest = blog / "posts.json"
     posts = json.loads(manifest.read_text()) if manifest.exists() else []
+    page = blog / "index.html"
+    if any(p["slug"] == a.slug for p in posts) and page.exists() and f'href="{a.slug}/"' in page.read_text(encoding="utf-8"):
+        # already listed: the site owns the list entry (its date, wording and format), so leave it alone
+        print(f"published {a.slug}: {post / 'index.html'} (list entry left as the site has it)")
+        return
     posts = [p for p in posts if p["slug"] != a.slug] + [dict(slug=a.slug, title=h1, description=desc, date=a.date)]
     manifest.write_text(json.dumps(posts, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    page = blog / "index.html"
     if page.exists():
         old = page.read_text(encoding="utf-8")
         new, n = re.subn(r'(<ul class="post-list">\n).*?(\n</ul>)', lambda m: m.group(1) + "\n".join(list_items(posts)) + m.group(2), old, count=1, flags=re.S)
