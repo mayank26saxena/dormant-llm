@@ -30,9 +30,9 @@ BASE = "https://mayank26saxena.github.io"
 AUTHOR = "Mayank Saxena"
 SPLIT = ("#4a524e", "#d09017")  # this post's split rule: score | checks
 FAVICONS = "\n".join([  # same favicon tags as the rest of the site
-    '<link rel="icon" type="image/png" sizes="32x32" href="/assets/img/favicon-32x32.png">',
-    '<link rel="icon" type="image/png" sizes="96x96" href="/assets/img/favicon-96x96.png">',
-    '<link rel="apple-touch-icon" href="/apple-touch-icon.png">',
+    '<link rel="icon" type="image/png" sizes="32x32" href="/assets/img/favicon-32x32.png?v=3">',
+    '<link rel="icon" type="image/png" sizes="96x96" href="/assets/img/favicon-96x96.png?v=3">',
+    '<link rel="apple-touch-icon" href="/apple-touch-icon.png?v=3">',
 ])
 
 
